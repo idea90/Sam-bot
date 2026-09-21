@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -30,6 +31,7 @@ class AgentService:
         self._current_process: Optional[asyncio.subprocess.Process] = None
         self._subscribers: Set[asyncio.Queue] = set()
         self._cached_models: Optional[List[Dict[str, str]]] = None
+        self._active_async_task: Optional[asyncio.Task] = None
 
     def _find_agy_binary(self) -> str:
         """Find the path to agy.exe on the host system."""
@@ -277,12 +279,20 @@ class AgentService:
 
     async def cancel_task(self) -> bool:
         """Cancel and terminate the active Antigravity subprocess."""
+        if self._active_async_task and not self._active_async_task.done():
+            self._active_async_task.cancel()
+            self._active_async_task = None
+
         if self._current_process and self._current_process.returncode is None:
+            pid = self._current_process.pid
             try:
-                self._current_process.terminate()
-                await asyncio.sleep(0.5)
-                if self._current_process.returncode is None:
-                    self._current_process.kill()
+                if os.name == 'nt' and pid:
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+                else:
+                    self._current_process.terminate()
+                    await asyncio.sleep(0.3)
+                    if self._current_process.returncode is None:
+                        self._current_process.kill()
             except Exception as e:
                 print(f"Error terminating agy process: {e}")
             finally:

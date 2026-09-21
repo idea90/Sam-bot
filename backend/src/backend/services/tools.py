@@ -871,7 +871,7 @@ class ToolRegistry:
             async def _run():
                 async for _ in agent_service.dispatch_task(inst):
                     pass
-            asyncio.create_task(_run())
+            agent_service._active_async_task = asyncio.create_task(_run())
             return f"I've dispatched that task to Antigravity: '{inst}'. I will monitor its progress and let you know when it's done."
 
         if act in ["status", "check", "check_status", "progress"]:

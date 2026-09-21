@@ -48,12 +48,22 @@ async def run_tests():
     assert intent_cancel is not None
     assert intent_cancel[0] == "antigravity_control"
 
-    # 8. Intent Detection - Dispatch query
+    # 8. Intent Detection - Dispatch query (explicit)
     intent_dispatch = await llm_service.detect_and_execute_tool("Ask the coding agent to add a new unit test")
     print("[OK] Intent Agent Dispatch:", intent_dispatch)
     assert intent_dispatch is not None
     assert intent_dispatch[0] == "antigravity_control"
-    assert "dispatched" in intent_dispatch[1].lower() or "task" in intent_dispatch[1].lower()
+    assert "dispatched" in intent_dispatch[1].lower()
+
+    # Cancel background task before next test
+    await agent_service.cancel_task()
+
+    # 9. Intent Detection - Direct Script / File creation query
+    intent_direct = await llm_service.detect_and_execute_tool("create a python script in scratch called hello_sam.py that prints a greeting and calculates the 10th Fibonacci number")
+    print("[OK] Intent Direct Script Creation:", intent_direct)
+    assert intent_direct is not None
+    assert intent_direct[0] == "antigravity_control"
+    assert "dispatched" in intent_direct[1].lower()
 
     # Give a moment and verify status is tracked or cancelling cleanup
     await agent_service.cancel_task()
@@ -61,3 +71,4 @@ async def run_tests():
 
 if __name__ == "__main__":
     asyncio.run(run_tests())
+    sys.exit(0)

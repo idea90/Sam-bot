@@ -358,22 +358,53 @@ class LLMService:
                 res = await tool_registry.web_search(query)
                 return ("web_search", res)
 
-        # 11a. Antigravity Coding Agent (status, dispatch, cancel, models)
-        if any(w in lowered for w in ['coding agent', 'antigravity', 'agent status', 'check the agent', 'check agent', 'agent progress', 'stop the agent', 'stop agent', 'cancel agent']):
-            if any(w in lowered for w in ['stop', 'cancel', 'abort', 'kill']):
-                res = await tool_registry.antigravity_control("cancel")
-                return ("antigravity_control", res)
-            elif any(w in lowered for w in ['models', 'model']):
-                res = await tool_registry.antigravity_control("models")
-                return ("antigravity_control", res)
-            else:
-                res = await tool_registry.antigravity_control("status")
-                return ("antigravity_control", res)
-
-        agent_dispatch_match = re.search(r'^(?:can you\s+)?(?:tell|ask)\s+(?:the\s+)?(?:coding\s+agent|antigravity)\s+to\s+(.+)', query, flags=re.IGNORECASE)
+        # 11a. Antigravity Coding Agent: Dispatch (explicit agent instructions)
+        agent_dispatch_match = re.search(
+            r'^(?:can you\s+)?(?:please\s+)?(?:tell|ask|have|get|instruct|dispatch\s+to)\s+(?:the\s+)?(?:coding\s+agent|antigravity|agent)\s+(?:to\s+)?(.+)',
+            query,
+            flags=re.IGNORECASE
+        )
         if agent_dispatch_match:
             task_instruction = agent_dispatch_match.group(1).strip(' ?.')
             res = await tool_registry.antigravity_control("dispatch", task_instruction)
+            return ("antigravity_control", res)
+
+        # Agent prefix prompt: e.g. "Antigravity: create a script..." or "Coding agent, add tests"
+        agent_prefix_match = re.search(
+            r'^(?:antigravity|coding\s+agent)\s*[:,-]\s*(?:please\s+)?(?:to\s+)?(.+)',
+            query,
+            flags=re.IGNORECASE
+        )
+        if agent_prefix_match:
+            task_instruction = agent_prefix_match.group(1).strip(' ?.')
+            res = await tool_registry.antigravity_control("dispatch", task_instruction)
+            return ("antigravity_control", res)
+
+        # Direct coding & file creation requests (e.g. "create a python script in scratch called hello_sam.py...")
+        code_action_match = re.search(
+            r'^(?:can you\s+)?(?:please\s+)?(?:create|write|make|generate|build|add)\s+(?:a\s+)?(?:new\s+)?(?:python\s+|javascript\s+|typescript\s+|bash\s+|shell\s+|test\s+)?(?:script|file|endpoint|module|function|component)\s+(?:in|at|called|named)\s+(.+)',
+            query,
+            flags=re.IGNORECASE
+        )
+        if code_action_match:
+            res = await tool_registry.antigravity_control("dispatch", query.strip(' ?.'))
+            return ("antigravity_control", res)
+
+        # 11b. Antigravity Coding Agent: Cancel / Stop
+        if any(w in lowered for w in ['stop the agent', 'cancel the agent', 'stop coding agent', 'cancel coding agent', 'stop antigravity', 'cancel antigravity', 'abort the agent', 'kill the agent', 'stop agent', 'cancel agent']) or (
+            any(w in lowered for w in ['antigravity', 'coding agent']) and any(w in lowered for w in ['stop', 'cancel', 'abort', 'kill'])
+        ):
+            res = await tool_registry.antigravity_control("cancel")
+            return ("antigravity_control", res)
+
+        # 11c. Antigravity Coding Agent: Models
+        if any(w in lowered for w in ['antigravity', 'coding agent']) and any(w in lowered for w in ['models', 'model']):
+            res = await tool_registry.antigravity_control("models")
+            return ("antigravity_control", res)
+
+        # 11d. Antigravity Coding Agent: Status & Monitoring
+        if any(w in lowered for w in ['coding agent', 'antigravity', 'agent status', 'check the agent', 'check agent', 'agent progress', 'is the agent running']):
+            res = await tool_registry.antigravity_control("status")
             return ("antigravity_control", res)
 
         # 11b. Gaming Mode (auto-launch Roblox + Discord) — must run before generic
