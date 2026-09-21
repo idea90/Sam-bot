@@ -1,9 +1,14 @@
-Write-Host "===================================================" -ForegroundColor Cyan
-Write-Host "Starting Sam Voice Assistant (Backend + Frontend)" -ForegroundColor Cyan
-Write-Host "===================================================" -ForegroundColor Cyan
+# Launch Sam Voice Assistant (Backend + Frontend)
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host "   Starting Sam Voice Assistant (AI + Agent)  " -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor Cyan
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\backend'; uv run backend"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\frontend'; pnpm dev"
+Write-Host "`n[1/2] Starting Backend on http://127.0.0.1:8000..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; uv run uvicorn backend.main:app --reload"
 
-Write-Host "Backend launching at http://localhost:8000" -ForegroundColor Green
-Write-Host "Frontend launching at http://localhost:5173" -ForegroundColor Green
+Start-Sleep -Seconds 2
+
+Write-Host "[2/2] Starting Frontend on http://localhost:5173..." -ForegroundColor Green
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; pnpm dev"
+
+Write-Host "`nReady! Head to http://localhost:5173 in your browser." -ForegroundColor Cyan
