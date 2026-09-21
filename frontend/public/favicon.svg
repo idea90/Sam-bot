@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14141D" />
+      <stop offset="100%" stop-color="#08080B" />
+    </linearGradient>
+
+    <!-- Orb Radial Gradient -->
+    <radialGradient id="orbGrad" cx="38%" cy="36%" r="64%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="22%" stop-color="#EEF2FF" />
+      <stop offset="48%" stop-color="#AAB4FF" />
+      <stop offset="78%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </radialGradient>
+
+    <!-- Outer Ambient Glow Gradient -->
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#AAB4FF" stop-opacity="0.7" />
+      <stop offset="50%" stop-color="#6366F1" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Waveform Gradient -->
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.3" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Soft Glow Filter -->
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Ambient Core Blur -->
+    <filter id="ambientGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5.5" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base with Border for High Contrast on Dark/Light Browser Chrome -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bgGrad)" stroke="#232330" stroke-width="1.5" />
+
+  <!-- Outer Ambient Glow Bloom -->
+  <circle cx="32" cy="32" r="22" fill="url(#glowGrad)" filter="url(#ambientGlow)" />
+
+  <!-- Outer Sonic Resonance Ring -->
+  <circle cx="32" cy="32" r="23" fill="none" stroke="#AAB4FF" stroke-width="1" stroke-opacity="0.35" stroke-dasharray="3 4" />
+
+  <!-- Central Glowing Voice Orb -->
+  <circle cx="32" cy="32" r="16.5" fill="url(#orbGrad)" filter="url(#softGlow)" />
+
+  <!-- Specular Light Reflection -->
+  <ellipse cx="27" cy="23" rx="5" ry="2.6" fill="#FFFFFF" fill-opacity="0.8" transform="rotate(-25 27 23)" />
+
+  <!-- Voice Audio Waveform Pulse across Center -->
+  <path d="M 21 32 C 24 32, 25 24, 28.5 24 C 32 24, 32 40, 35.5 40 C 39 40, 40 32, 43 32"
+        fill="none"
+        stroke="url(#waveGrad)"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round" />
+</svg>

@@ -1,0 +1,72 @@
+export type AssistantState =
+  | 'idle'
+  | 'listening'
+  | 'thinking'
+  | 'searching'
+  | 'speaking'
+  | 'error';
+
+export interface SourceItem {
+  title: string;
+  url: string;
+  domain: string;
+}
+
+export interface ImagePayload {
+  data_url: string;
+  source_url: string;
+  title: string;
+  domain: string;
+}
+
+export interface MediaPayload {
+  video_id: string;
+  title: string;
+  channel: string;
+  duration?: string;
+  watch_url: string;
+  music_url: string;
+  embed_url: string;
+  thumbnail: string;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  timestamp: Date;
+  audioUrl?: string;
+  toolUsed?: string;
+  sources?: SourceItem[];
+  image?: ImagePayload;
+  media?: MediaPayload;
+}
+
+export interface VoiceOption {
+  id: string;
+  name: string;
+  locale: string;
+  gender: string;
+  description?: string;
+}
+
+export interface AssistantSettings {
+  voice: string;
+  rate: string;
+  pitch: string;
+  provider: 'auto' | 'groq' | 'gemini' | 'openai' | 'local' | 'demo';
+  groqApiKey: string;
+  geminiApiKey: string;
+  openaiApiKey: string;
+  modelName: string;
+  systemPrompt: string;
+  autoSpeak: boolean;
+  continuousListening: boolean;
+  wakeWordEnabled: boolean;
+  soundEffectsEnabled: boolean;
+  enableWebSearch: boolean;
+  enableWeather: boolean;
+  mcpCommand: string;
+  localBaseUrl: string;
+  localModel: string;
+}

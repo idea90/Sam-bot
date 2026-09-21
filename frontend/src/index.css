@@ -1,0 +1,271 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-base: #08080B;
+  --color-surface: #121218;
+  --color-pill: #16161F;
+  --color-border: #232330;
+
+  --color-primary: #EDEDF2;
+  --color-secondary: #8C8C9C;
+  --color-tertiary: #5A5A68;
+  --color-accent: #AAB4FF;
+}
+
+@layer base {
+  * {
+    border-color: #232330;
+  }
+
+  body {
+    background-color: #08080B;
+    color: #EDEDF2;
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─── Orb Animations ─── */
+
+/* Gentle 1.6s scale pulse for listening orb */
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+.animate-orb-pulse {
+  animation: orb-pulse 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Faster halo for listening state */
+@keyframes halo-listen {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.06); }
+}
+.animate-halo-listen {
+  animation: halo-listen 1.6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Speaking halo ring pulsing glow */
+@keyframes halo-pulse {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.04); }
+}
+.animate-halo-pulse {
+  animation: halo-pulse 2.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ─── Entrance Animations ─── */
+
+/* Tool badge subtle entrance */
+@keyframes badge-enter {
+  0% { opacity: 0; transform: translateY(3px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-badge-enter {
+  animation: badge-enter 0.2s ease-out forwards;
+}
+
+/* Fade up entrance for chips */
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out forwards;
+}
+
+/* Slide in from right for drawer */
+@keyframes slide-in-right {
+  0% { transform: translateX(100%); opacity: 0.5; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Backdrop fade in */
+@keyframes backdrop-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.animate-backdrop-fade {
+  animation: backdrop-fade 0.25s ease-out forwards;
+}
+
+/* ─── Shimmer ─── */
+
+/* Shimmer sweep for active tool badges */
+@keyframes shimmer-sweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer-sweep 2.5s ease-in-out infinite;
+}
+
+/* ─── Performance-Optimized Surfaces ─── */
+
+.glass {
+  background: #121218;
+}
+
+.glass-subtle {
+  background: #08080B;
+}
+
+/* ─── Custom Range Slider ─── */
+
+/* Reset native appearance */
+input[type="range"].custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #232330;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+/* Track — WebKit (Chrome, Edge, Safari) */
+input[type="range"].custom-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+/* Thumb — WebKit */
+input[type="range"].custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #EDEDF2;
+  border: 2px solid #AAB4FF;
+  box-shadow: 0 0 6px rgba(170, 180, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  margin-top: -5px;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+input[type="range"].custom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  border-color: #FFFFFF;
+  box-shadow: 0 0 12px rgba(170, 180, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+input[type="range"].custom-slider::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(170, 180, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Track — Firefox */
+input[type="range"].custom-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: #232330;
+}
+
+/* Progress fill — Firefox */
+input[type="range"].custom-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366F1, #AAB4FF);
+}
+
+/* Thumb — Firefox */
+input[type="range"].custom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #EDEDF2;
+  border: 2px solid #AAB4FF;
+  box-shadow: 0 0 6px rgba(170, 180, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+input[type="range"].custom-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(170, 180, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Custom Toggle Switch ─── */
+
+.toggle-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #232330;
+  border: 1px solid #232330;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: #6366F1;
+  border-color: #AAB4FF;
+  box-shadow: 0 0 10px rgba(170, 180, 255, 0.25);
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #5A5A68;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-track::after {
+  transform: translateX(18px);
+  background: #EDEDF2;
+  box-shadow: 0 0 6px rgba(170, 180, 255, 0.4);
+}
+
+/* ─── Custom Scrollbar ─── */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #232330;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5A5A68;
+}
+
