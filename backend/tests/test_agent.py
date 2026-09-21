@@ -34,7 +34,7 @@ async def run_tests():
     # 5. Tool Registry antigravity_control - cancel when idle
     tool_cancel = await tool_registry.antigravity_control("cancel")
     print("[OK] Tool Antigravity Cancel:", tool_cancel)
-    assert "no coding agent" in tool_cancel.lower() or "no active" in tool_cancel.lower()
+    assert "no agent" in tool_cancel.lower() or "no active" in tool_cancel.lower()
 
     # 6. Intent Detection - Status query
     intent_status = await llm_service.detect_and_execute_tool("What is the coding agent doing right now?")
@@ -67,7 +67,30 @@ async def run_tests():
 
     # Give a moment and verify status is tracked or cancelling cleanup
     await agent_service.cancel_task()
-    print("[ALL OK] All Antigravity Agent tests passed successfully!")
+
+    # 10. Command execution test
+    cmd_res = await agent_service.execute_command("python -c \"print('hello from agent command runner')\"")
+    print("[OK] Agent Command Runner:", cmd_res)
+    assert cmd_res["exit_code"] == 0
+    assert "hello from agent command runner" in cmd_res["output"]
+
+    # 11. Tool registry terminal command execution test
+    tool_cmd_res = await tool_registry.execute_terminal_command("python -c \"print(42 * 2)\"")
+    print("[OK] Tool Terminal Command Execution:", tool_cmd_res)
+    assert "84" in tool_cmd_res
+    assert "successfully" in tool_cmd_res
+
+    # 12. Run it intent detection
+    agent_service.status.suggested_command = "python -c \"print('executed suggested')\""
+    intent_run = await llm_service.detect_and_execute_tool("run the script")
+    print("[OK] Intent Run Script:", intent_run)
+    assert intent_run is not None
+    assert "executed suggested" in intent_run[1]
+
+    # Verify no 'Antigravity' brand name in tool outputs
+    assert "antigravity" not in tool_status.lower()
+
+    print("[ALL OK] All Agent tests passed successfully!")
 
 if __name__ == "__main__":
     asyncio.run(run_tests())

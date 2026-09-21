@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -16,6 +17,8 @@ class AgentStatus:
     active_tool: Optional[str] = None
     active_tool_summary: Optional[str] = None
     files_modified: List[str] = field(default_factory=list)
+    suggested_command: Optional[str] = None
+    workspace_path: str = ""
     latest_output: str = ""
     start_time: Optional[float] = None
     duration_seconds: float = 0.0
@@ -205,17 +208,37 @@ class AgentService:
                             self.status.latest_output = full_response
 
                         # Inspect tool execution
-                        tool_call = su.get("tool_call") or su.get("tool")
-                        if tool_call:
-                            tool_name = tool_call if isinstance(tool_call, str) else tool_call.get("name", "")
-                            self.status.active_tool = tool_name
-                            self.status.active_tool_summary = su.get("tool_summary", f"Executing {tool_name}")
+                        tool_info = su.get("tool_info", {})
+                        tool_name = (
+                            su.get("tool_name")
+                            or (tool_info.get("name") if isinstance(tool_info, dict) else None)
+                            or su.get("tool_call")
+                            or su.get("tool")
+                        )
+                        if isinstance(tool_name, dict):
+                            tool_name = tool_name.get("name", "")
+
+                        if tool_name:
+                            self.status.active_tool = str(tool_name)
+                            summary = su.get("tool_summary")
+                            if not summary and isinstance(tool_info, dict):
+                                summary = tool_info.get("toolSummary") or tool_info.get("summary")
+                            self.status.active_tool_summary = summary or f"Executing {tool_name}"
 
                             # Track files being edited or written
+                            params = tool_info.get("parameters", {}) if isinstance(tool_info, dict) else {}
                             tool_args = su.get("tool_args", {})
-                            target_file = tool_args.get("TargetFile") or tool_args.get("path")
+                            target_file = (
+                                params.get("TargetFile")
+                                or params.get("target_file")
+                                or params.get("path")
+                                or params.get("file_path")
+                                or tool_args.get("TargetFile")
+                                or tool_args.get("path")
+                            )
                             if target_file:
-                                modified_files_set.add(str(target_file))
+                                full_p = str(target_file).replace("\\", "/")
+                                modified_files_set.add(full_p)
                                 self.status.files_modified = list(modified_files_set)
 
                         await self._broadcast(data)
@@ -227,6 +250,10 @@ class AgentService:
                         status = res.get("status", "SUCCESS")
                         duration = res.get("duration_seconds", round(time.time() - (self.status.start_time or 0), 1))
                         resp_text = res.get("response", full_response)
+                        res_files = res.get("files_modified", [])
+                        if res_files:
+                            for rf in res_files:
+                                modified_files_set.add(str(rf).replace("\\", "/"))
 
                         self.status.state = "completed" if status == "SUCCESS" else "error"
                         self.status.duration_seconds = duration
@@ -245,6 +272,38 @@ class AgentService:
 
             await self._current_process.wait()
 
+            # Inspect disk for files requested in instruction that now exist
+            ws_path = Path(self.workspace_path)
+            potential_files = re.findall(r'[\'"`]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]{1,5})[\'"`]?', instruction)
+            for pf in potential_files:
+                candidates = [ws_path / pf, ws_path / "scratch" / Path(pf).name]
+                for c in candidates:
+                    if c.is_file():
+                        try:
+                            rel = str(c.relative_to(ws_path)).replace("\\", "/")
+                            modified_files_set.add(rel)
+                        except ValueError:
+                            modified_files_set.add(str(c).replace("\\", "/"))
+
+            self.status.files_modified = list(modified_files_set)
+
+            # Derive suggested command to run the created code
+            self.status.suggested_command = None
+            for f in self.status.files_modified:
+                f_norm = f.replace("\\", "/").strip()
+                if f_norm.endswith(".py"):
+                    self.status.suggested_command = f"python {f_norm}"
+                    break
+                elif f_norm.endswith(".js"):
+                    self.status.suggested_command = f"node {f_norm}"
+                    break
+                elif f_norm.endswith(".ts"):
+                    self.status.suggested_command = f"pnpm test"
+                    break
+                elif f_norm.endswith(".sh"):
+                    self.status.suggested_command = f"bash {f_norm}"
+                    break
+
             if self.status.state == "running":
                 duration = round(time.time() - (self.status.start_time or 0), 1)
                 self.status.state = "completed"
@@ -255,7 +314,8 @@ class AgentService:
                         "status": "SUCCESS",
                         "response": full_response,
                         "duration_seconds": duration,
-                        "files_modified": list(modified_files_set),
+                        "files_modified": self.status.files_modified,
+                        "suggested_command": self.status.suggested_command,
                     }
                 }
                 await self._broadcast(done_event)
@@ -302,6 +362,29 @@ class AgentService:
                 self.status.active_tool_summary = None
                 return True
         return False
+
+    async def execute_command(self, command: str) -> Dict[str, Any]:
+        """Execute a shell command in the project workspace."""
+        cmd_str = command.strip()
+        if not cmd_str:
+            return {"exit_code": 1, "output": "No command provided", "error": "Empty command"}
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                cmd_str,
+                cwd=self.workspace_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout_data, _ = await proc.communicate()
+            output = stdout_data.decode("utf-8", errors="replace") if stdout_data else ""
+            return {
+                "exit_code": proc.returncode,
+                "output": output,
+                "command": cmd_str,
+                "workspace": self.workspace_path,
+            }
+        except Exception as e:
+            return {"exit_code": 1, "output": f"Command execution failed: {e}", "error": str(e)}
 
 # Global singleton instance
 agent_service = AgentService()

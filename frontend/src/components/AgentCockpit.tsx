@@ -13,6 +13,8 @@ import {
   Minimize2,
   Cpu,
   Loader2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import type { AgentStatusPayload, AgentModel } from '../types';
 
@@ -36,11 +38,24 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
   onSelectModel,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [showFiles, setShowFiles] = useState(false);
+  const [showFiles, setShowFiles] = useState(true);
   const [taskInput, setTaskInput] = useState('');
   const [selectedModel, setSelectedModel] = useState(status.model || 'gemini-3.8-flash-high');
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Command runner state
+  const [commandInput, setCommandInput] = useState('');
+  const [commandOutput, setCommandOutput] = useState<string | null>(null);
+  const [isExecutingCommand, setIsExecutingCommand] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Auto-fill suggested command when agent creates/modifies files
+  useEffect(() => {
+    if (status.suggested_command && !commandInput) {
+      setCommandInput(status.suggested_command);
+    }
+  }, [status.suggested_command]);
 
   // Sync selected model with status model if updated externally
   useEffect(() => {
@@ -77,6 +92,41 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
     } finally {
       setIsCancelling(false);
     }
+  };
+
+  const handleRunCommand = async (cmdToRun?: string) => {
+    const cmd = (cmdToRun || commandInput).trim();
+    if (!cmd || isExecutingCommand) return;
+    try {
+      setIsExecutingCommand(true);
+      setCommandOutput(null);
+      const res = await fetch('/api/agent/run-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCommandOutput(data.output || (data.exit_code === 0 ? 'Command finished with 0 errors.' : `Exited with code ${data.exit_code}`));
+      } else {
+        setCommandOutput(`Failed to execute command: HTTP ${res.status}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCommandOutput(`Execution error: ${msg}`);
+    } finally {
+      setIsExecutingCommand(false);
+    }
+  };
+
+  const copyFilePath = (filePath: string, idx: number) => {
+    const ws = status.workspace_path || 'C:\\Users\\advice\\Downloads\\CODE\\Sam-bot';
+    const fullPath = filePath.includes(':') || filePath.startsWith('/')
+      ? filePath
+      : `${ws}\\${filePath.replace(/\//g, '\\')}`;
+    navigator.clipboard.writeText(fullPath);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   // State styling helper
@@ -119,7 +169,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
   const badge = getBadgeStyle();
 
   return (
-    <div className="fixed top-5 right-5 z-40 w-96 max-w-[calc(100vw-40px)] animate-fade-up select-none">
+    <div className="fixed top-5 right-5 z-40 w-[420px] max-w-[calc(100vw-40px)] animate-fade-up select-none">
       <div className="relative rounded-2xl bg-[#121218]/95 backdrop-blur-md border border-[#232330] shadow-[0_12px_40px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300 hover:border-[#AAB4FF]/30">
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-3.5 py-3 border-b border-[#232330]/60 bg-[#0E0E14]">
@@ -129,7 +179,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-[13px] font-semibold text-[#EDEDF2] tracking-tight leading-none">
-                Antigravity Agent
+                Coding Agent
               </span>
               <span className="text-[10px] font-mono text-[#5A5A68] uppercase tracking-wider mt-0.5">
                 Cockpit HUD
@@ -155,7 +205,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 rounded-lg text-[#5A5A68] hover:text-[#EDEDF2] hover:bg-[#1C1C26] transition-colors"
+              className="p-1 rounded-lg text-[#5A5A68] hover:text-[#EDEDF2] hover:bg-[#1C1C26] transition-colors cursor-pointer"
               title={isExpanded ? 'Collapse HUD' : 'Expand HUD'}
             >
               {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -165,7 +215,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-[#5A5A68] hover:text-[#EDEDF2] hover:bg-[#1C1C26] transition-colors"
+              className="p-1 rounded-lg text-[#5A5A68] hover:text-[#EDEDF2] hover:bg-[#1C1C26] transition-colors cursor-pointer"
               title="Close HUD"
             >
               <X className="w-3.5 h-3.5" />
@@ -175,7 +225,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
 
         {/* Expanded Content View */}
         {isExpanded && (
-          <div className="p-3.5 flex flex-col gap-3">
+          <div className="p-3.5 flex flex-col gap-3 max-h-[85vh] overflow-y-auto">
             {/* Task Description */}
             {status.current_task ? (
               <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-[#0A0A0E] border border-[#1E1E28]">
@@ -230,31 +280,120 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
               </div>
             )}
 
-            {/* Modified Files Section */}
+            {/* Modified / Created Files Section with Exact Paths */}
             {status.files_modified && status.files_modified.length > 0 && (
               <div className="flex flex-col gap-1 border border-[#232330] rounded-xl overflow-hidden bg-[#0D0D12]">
                 <button
                   type="button"
                   onClick={() => setShowFiles(!showFiles)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] text-[#8C8C9C] hover:text-[#EDEDF2] transition-colors"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] text-[#8C8C9C] hover:text-[#EDEDF2] transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5 font-mono">
                     <FileCode2 className="w-3 h-3 text-[#AAB4FF]" />
-                    {status.files_modified.length} File{status.files_modified.length > 1 ? 's' : ''} Modified
+                    {status.files_modified.length} File{status.files_modified.length > 1 ? 's' : ''} Created / Modified
                   </span>
                   {showFiles ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
                 {showFiles && (
-                  <div className="p-2 pt-0 max-h-24 overflow-y-auto flex flex-col gap-1">
-                    {status.files_modified.map((f, i) => (
-                      <span key={i} className="text-[10px] font-mono text-[#AAB4FF] truncate bg-[#16161F] px-2 py-0.5 rounded">
-                        {f}
-                      </span>
-                    ))}
+                  <div className="p-2 pt-0 max-h-36 overflow-y-auto flex flex-col gap-1.5">
+                    {status.files_modified.map((f, i) => {
+                      const ws = status.workspace_path || 'C:\\Users\\advice\\Downloads\\CODE\\Sam-bot';
+                      const fullPath = f.includes(':') || f.startsWith('/') ? f : `${ws}\\${f.replace(/\//g, '\\')}`;
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-[#16161F] border border-[#232330]/50"
+                        >
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11px] font-mono text-[#EDEDF2] truncate font-medium">
+                              {f.split(/[/\\]/).pop()}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#5A5A68] truncate" title={fullPath}>
+                              {fullPath}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyFilePath(f, i)}
+                            className="p-1 rounded bg-[#1C1C26] hover:bg-[#232330] text-[#8C8C9C] hover:text-[#EDEDF2] transition-colors shrink-0 cursor-pointer"
+                            title="Copy Full File Path"
+                          >
+                            {copiedIndex === i ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
+
+            {/* Run Command Section (Always Ask / Suggest Command) */}
+            <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-[#0D0D14] border border-[#232330]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#5A5A68] flex items-center gap-1">
+                  <Terminal className="w-3 h-3 text-[#AAB4FF]" />
+                  <span>Terminal Command</span>
+                </span>
+                {status.suggested_command && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommandInput(status.suggested_command || '');
+                      handleRunCommand(status.suggested_command || '');
+                    }}
+                    disabled={isExecutingCommand}
+                    className="text-[10px] font-mono text-[#AAB4FF] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Play className="w-2 h-2 fill-current" />
+                    <span>Run Suggested</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Command Input Bar */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleRunCommand();
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={commandInput}
+                  onChange={(e) => setCommandInput(e.target.value)}
+                  placeholder="e.g. python scratch/hello_sam.py"
+                  disabled={isExecutingCommand}
+                  className="flex-1 bg-[#07070A] border border-[#232330] rounded-lg px-2 py-1 text-[11px] font-mono text-[#EDEDF2] placeholder-[#5A5A68] focus:outline-none focus:border-[#AAB4FF]/40 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!commandInput.trim() || isExecutingCommand}
+                  className="px-2.5 py-1 rounded-lg bg-[#232330] hover:bg-[#2F2F40] text-[#EDEDF2] text-[11px] font-mono flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                >
+                  {isExecutingCommand ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="w-2.5 h-2.5 fill-current text-emerald-400" />
+                      <span>Run</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Command Execution Output Console */}
+              {commandOutput && (
+                <div className="mt-1 p-2 rounded-lg bg-[#060608] border border-[#1A1A24] max-h-28 overflow-y-auto font-mono text-[10px] text-emerald-300 leading-snug whitespace-pre-wrap select-text">
+                  {commandOutput}
+                </div>
+              )}
+            </div>
 
             {/* Model Selector and Status Footer */}
             <div className="flex items-center justify-between gap-2 text-[11px] pt-1 border-t border-[#232330]/40">
@@ -303,7 +442,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
                   type="text"
                   value={taskInput}
                   onChange={(e) => setTaskInput(e.target.value)}
-                  placeholder="Assign task to Antigravity..."
+                  placeholder="Assign task to agent..."
                   disabled={isDispatching}
                   className="flex-1 bg-[#0A0A0E] border border-[#232330] rounded-xl px-2.5 py-1.5 text-[12px] text-[#EDEDF2] placeholder-[#5A5A68] focus:outline-none focus:border-[#AAB4FF]/40 disabled:opacity-50"
                 />

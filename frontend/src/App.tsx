@@ -11,7 +11,7 @@ import { Mic, ArrowUp, ExternalLink, Globe } from 'lucide-react';
 import type { AgentStatusPayload, AgentModel } from './types';
 
 const SUGGESTION_CHIPS = [
-  'Ask Antigravity: Check status',
+  'Ask agent: Check status',
   'Start Gaming Mode',
   'Play Bohemian Rhapsody',
   'Open VS Code',

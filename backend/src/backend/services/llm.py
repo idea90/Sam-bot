@@ -407,6 +407,24 @@ class LLMService:
             res = await tool_registry.antigravity_control("status")
             return ("antigravity_control", res)
 
+        # 11e. Run Script / Command Intent ("run it", "run the script", "execute it", "run python ...")
+        if re.search(r"^(?:can you\s+)?(?:please\s+)?(?:run it|run the script|run the file|execute it|run the code)\b", lowered):
+            from .agent_service import agent_service
+            cmd = agent_service.status.suggested_command
+            if cmd:
+                res = await tool_registry.execute_terminal_command(cmd)
+                return ("system_control", res)
+            elif agent_service.status.files_modified:
+                f = agent_service.status.files_modified[0]
+                res = await tool_registry.execute_terminal_command(f"python {f}" if f.endswith(".py") else f"node {f}")
+                return ("system_control", res)
+            return ("system_control", "No recent script was detected to run. What command would you like me to execute?")
+
+        cmd_run_match = re.search(r"^(?:can you\s+)?(?:please\s+)?(?:run|execute)\s+(?:command\s+)?([a-zA-Z0-9_\-./\\]+\s+.+)", query, flags=re.IGNORECASE)
+        if cmd_run_match and any(cmd_run_match.group(1).startswith(p) for p in ["python", "node", "pnpm", "npm", "git", "uv", "bash"]):
+            res = await tool_registry.execute_terminal_command(cmd_run_match.group(1).strip())
+            return ("system_control", res)
+
         # 11b. Gaming Mode (auto-launch Roblox + Discord) — must run before generic
         #      app-launch and media-playback intents so "play Roblox" doesn't hit YouTube
         if re.search(r"gaming mode|game mode|start gaming|gaming setup|let'?s game|play (?:some )?roblox", lowered):

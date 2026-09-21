@@ -103,6 +103,16 @@ async def agent_websocket(websocket: WebSocket):
     finally:
         agent_service.unsubscribe(queue)
 
+class RunCommandRequest(BaseModel):
+    command: str
+
+@router.post("/run-command")
+async def run_agent_command(req: RunCommandRequest):
+    """Execute a shell command in the project workspace."""
+    if not req.command.strip():
+        raise HTTPException(status_code=400, detail="Command cannot be empty")
+    return await agent_service.execute_command(req.command)
+
 async def self_consume(gen):
     """Consume an async generator to trigger dispatch without blocking the caller."""
     try:

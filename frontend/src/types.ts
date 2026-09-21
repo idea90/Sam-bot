@@ -78,6 +78,8 @@ export interface AgentStatusPayload {
   active_tool: string | null;
   active_tool_summary: string | null;
   files_modified: string[];
+  suggested_command?: string | null;
+  workspace_path?: string;
   latest_output: string;
   start_time: number | null;
   duration_seconds: number;

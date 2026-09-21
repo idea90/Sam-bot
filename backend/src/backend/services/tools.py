@@ -855,24 +855,24 @@ class ToolRegistry:
         return f"Unknown media player command: {action}"
 
     async def antigravity_control(self, action: str, instruction: Optional[str] = None) -> str:
-        """Control and monitor Google Antigravity coding agent."""
+        """Control and monitor the autonomous coding agent."""
         from .agent_service import agent_service
         act = (action or "").lower().strip()
         inst = (instruction or "").strip()
 
         if act in ["dispatch", "dispatch_task", "run", "start", "code"]:
             if not inst:
-                return "What task or bug would you like me to assign to the coding agent?"
+                return "What task or bug would you like me to assign to the agent?"
             if agent_service.status.state == "running":
                 curr = agent_service.status.current_task or "another task"
-                return f"Antigravity is currently busy working on: '{curr}'. Please wait for it to finish or say 'cancel agent' first."
+                return f"The agent is currently busy working on: '{curr}'. Please wait for it to finish or say 'cancel agent' first."
 
             # Start task as background asyncio task
             async def _run():
                 async for _ in agent_service.dispatch_task(inst):
                     pass
             agent_service._active_async_task = asyncio.create_task(_run())
-            return f"I've dispatched that task to Antigravity: '{inst}'. I will monitor its progress and let you know when it's done."
+            return f"I've dispatched that task to the agent: '{inst}'. I will monitor its progress and let you know when it's done."
 
         if act in ["status", "check", "check_status", "progress"]:
             st = agent_service.get_status()
@@ -881,29 +881,49 @@ class ToolRegistry:
                 tool_summary = st.get("active_tool_summary") or st.get("active_tool") or "thinking and planning"
                 dur = st.get("duration_seconds", 0)
                 files = len(st.get("files_modified", []))
-                return f"Antigravity is actively working on '{curr_task}'. Currently {tool_summary} ({dur}s elapsed, {files} files touched)."
+                return f"The agent is actively working on '{curr_task}'. Currently {tool_summary} ({dur}s elapsed, {files} files touched)."
             elif st["state"] == "completed":
                 dur = st.get("duration_seconds", 0)
-                return f"The coding agent is idle. The last task completed successfully in {dur} seconds."
+                files = st.get("files_modified", [])
+                cmd = st.get("suggested_command")
+                file_info = ""
+                if files:
+                    file_info = f" Created or modified {len(files)} file(s): {', '.join(files[:3])}."
+                cmd_info = ""
+                if cmd:
+                    cmd_info = f" Suggested command: '{cmd}'. Would you like me to run it?"
+                return f"The agent is idle. The last task completed in {dur} seconds.{file_info}{cmd_info}".strip()
             elif st["state"] == "cancelled":
-                return "The coding agent was cancelled and is currently idle."
+                return "The agent was cancelled and is currently idle."
             elif st["state"] == "error":
-                return f"The coding agent is idle. The last task encountered an error: {st.get('error', 'unknown error')}."
+                return f"The agent is idle. The last task encountered an error: {st.get('error', 'unknown error')}."
             else:
-                return "The coding agent is currently idle and ready for a task."
+                return "The agent is currently idle and ready for a task."
 
         if act in ["cancel", "stop", "abort", "kill"]:
             cancelled = await agent_service.cancel_task()
             if cancelled:
-                return "I've cancelled the coding agent's active task."
-            return "No coding agent task is currently running."
+                return "I've cancelled the agent's active task."
+            return "No agent task is currently running."
 
         if act in ["models", "list_models"]:
             models = await agent_service.list_models()
             names = [m["name"] for m in models[:4]]
-            return f"Antigravity supports several models including: {', '.join(names)}."
+            return f"The agent supports several models including: {', '.join(names)}."
 
-        return f"Unknown coding agent command: {action}"
+        return f"Unknown agent command: {action}"
+
+    async def execute_terminal_command(self, command: str) -> str:
+        """Run a terminal command in the workspace and return human-readable output."""
+        from .agent_service import agent_service
+        res = await agent_service.execute_command(command)
+        exit_code = res.get("exit_code", 1)
+        output = (res.get("output") or "").strip()
+        if exit_code == 0:
+            snippet = f"\nOutput:\n{output[:300]}" if output else ""
+            return f"Command '{command}' executed successfully.{snippet}"
+        else:
+            return f"Command '{command}' exited with code {exit_code}. {output[:300]}"
 
     @classmethod
     def get_definitions(cls) -> List[Dict[str, Any]]:
@@ -1203,6 +1223,8 @@ class ToolRegistry:
             return self.media_player(args.get("action", ""), args.get("query", ""))
         elif name in ["antigravity_control", "coding_agent"]:
             return await self.antigravity_control(args.get("action", ""), args.get("instruction", ""))
+        elif name in ["execute_command", "run_command", "terminal_command"]:
+            return await self.execute_terminal_command(args.get("command", ""))
         return f"Unknown tool: {name}"
 
 tool_registry = ToolRegistry()

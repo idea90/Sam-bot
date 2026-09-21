@@ -85,13 +85,13 @@ export const ArcSidebar: React.FC<MinimalSidebarProps> = ({
           <Mic className="w-4 h-4" />
         </SidebarButton>
 
-        {/* Antigravity Coding Agent Cockpit */}
+        {/* Coding Agent Cockpit */}
         {onToggleCockpit && (
           <SidebarButton
             onClick={onToggleCockpit}
             isActive={isCockpitOpen || isAgentActive}
-            title={isAgentActive ? 'Antigravity Agent (Active)' : 'Antigravity Cockpit (A)'}
-            ariaLabel="Toggle Antigravity Cockpit"
+            title={isAgentActive ? 'Coding Agent (Active)' : 'Agent Cockpit (A)'}
+            ariaLabel="Toggle Agent Cockpit"
           >
             <div className="relative flex items-center justify-center">
               <Terminal className="w-4 h-4" />
