@@ -318,6 +318,11 @@ export function App() {
               </button>
             </div>
           </form>
+
+          {/* Bottom Note: Personal Project */}
+          <p className="text-[11px] font-mono text-[#5A5A68] tracking-widest uppercase select-none opacity-60 hover:opacity-100 transition-opacity">
+            Personal Project
+          </p>
         </footer>
       </div>
 
