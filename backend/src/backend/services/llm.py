@@ -358,6 +358,24 @@ class LLMService:
                 res = await tool_registry.web_search(query)
                 return ("web_search", res)
 
+        # 11a. Antigravity Coding Agent (status, dispatch, cancel, models)
+        if any(w in lowered for w in ['coding agent', 'antigravity', 'agent status', 'check the agent', 'check agent', 'agent progress', 'stop the agent', 'stop agent', 'cancel agent']):
+            if any(w in lowered for w in ['stop', 'cancel', 'abort', 'kill']):
+                res = await tool_registry.antigravity_control("cancel")
+                return ("antigravity_control", res)
+            elif any(w in lowered for w in ['models', 'model']):
+                res = await tool_registry.antigravity_control("models")
+                return ("antigravity_control", res)
+            else:
+                res = await tool_registry.antigravity_control("status")
+                return ("antigravity_control", res)
+
+        agent_dispatch_match = re.search(r'^(?:can you\s+)?(?:tell|ask)\s+(?:the\s+)?(?:coding\s+agent|antigravity)\s+to\s+(.+)', query, flags=re.IGNORECASE)
+        if agent_dispatch_match:
+            task_instruction = agent_dispatch_match.group(1).strip(' ?.')
+            res = await tool_registry.antigravity_control("dispatch", task_instruction)
+            return ("antigravity_control", res)
+
         # 11b. Gaming Mode (auto-launch Roblox + Discord) — must run before generic
         #      app-launch and media-playback intents so "play Roblox" doesn't hit YouTube
         if re.search(r"gaming mode|game mode|start gaming|gaming setup|let'?s game|play (?:some )?roblox", lowered):
@@ -461,8 +479,8 @@ class LLMService:
             if detected:
                 tool_used, tool_result = detected
 
-        # Directly return concrete confirmation for system actions, media playback, and randomizers
-        if tool_used in ["system_control", "media_player", "randomizer", "gaming_mode", "image"]:
+        # Directly return concrete confirmation for system actions, media playback, randomizers, and coding agent
+        if tool_used in ["system_control", "media_player", "randomizer", "gaming_mode", "image", "antigravity_control"]:
             text = tool_result
         elif active_provider == "groq":
             text = await self._call_groq(messages, sys_prompt, groq_key, model_name, tool_result)
@@ -1018,7 +1036,7 @@ class LLMService:
                 event["audio"] = audio_b64
             yield event
 
-        if tool_used in ["system_control", "media_player", "randomizer", "gaming_mode", "image"]:
+        if tool_used in ["system_control", "media_player", "randomizer", "gaming_mode", "image", "antigravity_control"]:
             # Concrete tool confirmations are returned verbatim as a single sentence
             async for evt in emit_sentence(tool_result or ""):
                 yield evt

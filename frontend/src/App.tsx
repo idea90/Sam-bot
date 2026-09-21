@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SiriOrb } from './components/SiriOrb';
 import { ChatDrawer } from './components/ChatDrawer';
 import { SettingsModal } from './components/SettingsModal';
 import { ArcSidebar } from './components/ArcSidebar';
 import { ToolStatusBadge } from './components/ToolStatusBadge';
 import { MusicPlayerDock } from './components/MusicPlayerDock';
+import { AgentCockpit } from './components/AgentCockpit';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
 import { Mic, ArrowUp, ExternalLink, Globe } from 'lucide-react';
+import type { AgentStatusPayload, AgentModel } from './types';
 
 const SUGGESTION_CHIPS = [
+  'Ask Antigravity: Check status',
   'Start Gaming Mode',
   'Play Bohemian Rhapsody',
   'Open VS Code',
   'Volume up',
   "What's the weather in Tokyo?",
-  'Convert 100 USD to EUR',
   'Flip a coin',
 ];
 
@@ -22,6 +24,167 @@ export function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [textInput, setTextInput] = useState('');
+  const [isCockpitOpen, setIsCockpitOpen] = useState(false);
+  const [agentModels, setAgentModels] = useState<AgentModel[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentStatusPayload>({
+    state: 'idle',
+    current_task: null,
+    conversation_id: null,
+    active_tool: null,
+    active_tool_summary: null,
+    files_modified: [],
+    latest_output: '',
+    start_time: null,
+    duration_seconds: 0,
+    error: null,
+    model: 'gemini-3.8-flash-high',
+  });
+  const prevAgentState = useRef<string>('idle');
+
+  // Gentle smart assistant crystal chime on completion
+  const playCompletionChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Note 1: E5 (659.25 Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now);
+      gain1.gain.setValueAtTime(0.08, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Note 2: A5 (880 Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.12);
+      gain2.gain.setValueAtTime(0.1, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.55);
+    } catch {
+      // AudioContext unavailable or blocked
+    }
+  };
+
+  // Fetch available models once
+  useEffect(() => {
+    fetch('/api/agent/models')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.models)) {
+          setAgentModels(data.models);
+        }
+      })
+      .catch((err) => console.error('Failed to load agent models:', err));
+  }, []);
+
+  // Agent Status via WebSocket with fallback polling
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch('/api/agent/status');
+        if (res.ok) {
+          const data: AgentStatusPayload = await res.json();
+          setAgentStatus(data);
+          if (data.state === 'running') {
+            setIsCockpitOpen(true);
+          }
+          if (prevAgentState.current === 'running' && data.state === 'completed') {
+            playCompletionChime();
+          }
+          prevAgentState.current = data.state;
+        }
+      } catch {
+        // silent polling catch
+      }
+    };
+
+    const connectWs = () => {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/agent/ws`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'agent_status' && msg.payload) {
+              const newStatus = msg.payload as AgentStatusPayload;
+              setAgentStatus(newStatus);
+              if (newStatus.state === 'running') {
+                setIsCockpitOpen(true);
+              }
+              if (prevAgentState.current === 'running' && newStatus.state === 'completed') {
+                playCompletionChime();
+              }
+              prevAgentState.current = newStatus.state;
+            }
+          } catch {
+            // ignore malformed ws message
+          }
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+
+        ws.onclose = () => {
+          if (!pollInterval) {
+            pollInterval = setInterval(pollStatus, 3000);
+          }
+        };
+      } catch {
+        if (!pollInterval) {
+          pollInterval = setInterval(pollStatus, 3000);
+        }
+      }
+    };
+
+    // Initial check
+    pollStatus();
+    connectWs();
+
+    return () => {
+      if (ws) ws.close();
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, []);
+
+  const handleDispatchAgent = async (instruction: string, model?: string) => {
+    try {
+      const res = await fetch('/api/agent/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction, model }),
+      });
+      if (res.ok) {
+        setIsCockpitOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to dispatch agent task:', err);
+    }
+  };
+
+  const handleCancelAgent = async () => {
+    try {
+      await fetch('/api/agent/cancel', { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to cancel agent task:', err);
+    }
+  };
 
   const {
     state,
@@ -72,12 +235,16 @@ export function App() {
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         toggleMute();
+      } else if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setIsCockpitOpen((prev) => !prev);
       } else if (e.key === 'Escape') {
         if (isPlaying) {
           stopPlayback();
         }
         setIsDrawerOpen(false);
         setIsSettingsOpen(false);
+        setIsCockpitOpen(false);
       }
     };
 
@@ -134,10 +301,13 @@ export function App() {
       <ArcSidebar
         isListening={isListening}
         isMuted={isMuted}
+        isAgentActive={agentStatus.state === 'running'}
+        isCockpitOpen={isCockpitOpen}
         onToggleListening={toggleListening}
         onToggleMute={toggleMute}
         onOpenDrawer={() => setIsDrawerOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleCockpit={() => setIsCockpitOpen((prev) => !prev)}
       />
 
       {/* 2. Main Canvas */}
@@ -344,6 +514,17 @@ export function App() {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={updateSettings}
+      />
+
+      {/* Antigravity Coding Agent Cockpit HUD */}
+      <AgentCockpit
+        status={agentStatus}
+        isOpen={isCockpitOpen}
+        onClose={() => setIsCockpitOpen(false)}
+        onDispatch={handleDispatchAgent}
+        onCancel={handleCancelAgent}
+        models={agentModels}
+        onSelectModel={(m) => setAgentStatus((prev) => ({ ...prev, model: m }))}
       />
     </div>
   );

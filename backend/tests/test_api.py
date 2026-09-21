@@ -126,6 +126,25 @@ def test_chat_stream():
     assert "done" in event_types
     print(f"[OK] Chat stream endpoint OK! Received {len(events)} events: {event_types}")
 
+def test_agent_endpoints():
+    res_status = client.get("/api/agent/status")
+    assert res_status.status_code == 200
+    data_status = res_status.json()
+    assert "state" in data_status
+    assert data_status["state"] in ["idle", "running", "completed", "error", "cancelled"]
+    print("[OK] Agent status endpoint OK:", data_status["state"])
+
+    res_models = client.get("/api/agent/models")
+    assert res_models.status_code == 200
+    data_models = res_models.json()
+    assert "models" in data_models
+    assert len(data_models["models"]) > 0
+    print(f"[OK] Agent models endpoint OK: found {len(data_models['models'])} models")
+
+    res_cancel = client.post("/api/agent/cancel")
+    assert res_cancel.status_code == 200
+    print("[OK] Agent cancel endpoint OK:", res_cancel.json())
+
 if __name__ == "__main__":
     print("Running Sam Backend Verification Suite...")
     test_root()
@@ -136,5 +155,7 @@ if __name__ == "__main__":
     test_tts()
     test_websocket()
     test_local_endpoints()
+    test_agent_endpoints()
     test_chat_stream()
     print("\nALL TESTS PASSED SUCCESSFULLY!")
+

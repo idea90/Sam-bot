@@ -19,6 +19,7 @@ import {
   Monitor,
   Gamepad2,
   Image as ImageIcon,
+  Terminal,
 } from 'lucide-react';
 
 interface ToolStatusBadgeProps {
@@ -35,6 +36,9 @@ interface ToolConfig {
 export const getToolConfig = (rawName: string): ToolConfig => {
   const name = rawName.toLowerCase().replace('mcp:', '');
 
+  if (name.includes('antigravity') || name.includes('agent') || name.includes('code') || name.includes('coding')) {
+    return { icon: Terminal, label: 'CODING AGENT' };
+  }
   if (name.includes('thinking') || name.includes('reason')) {
     return { icon: Sparkles, label: 'REASONING' };
   }

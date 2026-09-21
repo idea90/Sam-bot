@@ -854,6 +854,57 @@ class ToolRegistry:
 
         return f"Unknown media player command: {action}"
 
+    async def antigravity_control(self, action: str, instruction: Optional[str] = None) -> str:
+        """Control and monitor Google Antigravity coding agent."""
+        from .agent_service import agent_service
+        act = (action or "").lower().strip()
+        inst = (instruction or "").strip()
+
+        if act in ["dispatch", "dispatch_task", "run", "start", "code"]:
+            if not inst:
+                return "What task or bug would you like me to assign to the coding agent?"
+            if agent_service.status.state == "running":
+                curr = agent_service.status.current_task or "another task"
+                return f"Antigravity is currently busy working on: '{curr}'. Please wait for it to finish or say 'cancel agent' first."
+
+            # Start task as background asyncio task
+            async def _run():
+                async for _ in agent_service.dispatch_task(inst):
+                    pass
+            asyncio.create_task(_run())
+            return f"I've dispatched that task to Antigravity: '{inst}'. I will monitor its progress and let you know when it's done."
+
+        if act in ["status", "check", "check_status", "progress"]:
+            st = agent_service.get_status()
+            if st["state"] == "running":
+                curr_task = st.get("current_task", "a coding task")
+                tool_summary = st.get("active_tool_summary") or st.get("active_tool") or "thinking and planning"
+                dur = st.get("duration_seconds", 0)
+                files = len(st.get("files_modified", []))
+                return f"Antigravity is actively working on '{curr_task}'. Currently {tool_summary} ({dur}s elapsed, {files} files touched)."
+            elif st["state"] == "completed":
+                dur = st.get("duration_seconds", 0)
+                return f"The coding agent is idle. The last task completed successfully in {dur} seconds."
+            elif st["state"] == "cancelled":
+                return "The coding agent was cancelled and is currently idle."
+            elif st["state"] == "error":
+                return f"The coding agent is idle. The last task encountered an error: {st.get('error', 'unknown error')}."
+            else:
+                return "The coding agent is currently idle and ready for a task."
+
+        if act in ["cancel", "stop", "abort", "kill"]:
+            cancelled = await agent_service.cancel_task()
+            if cancelled:
+                return "I've cancelled the coding agent's active task."
+            return "No coding agent task is currently running."
+
+        if act in ["models", "list_models"]:
+            models = await agent_service.list_models()
+            names = [m["name"] for m in models[:4]]
+            return f"Antigravity supports several models including: {', '.join(names)}."
+
+        return f"Unknown coding agent command: {action}"
+
     @classmethod
     def get_definitions(cls) -> List[Dict[str, Any]]:
         """Return standardized OpenAI/Gemini tool schemas."""
@@ -1095,6 +1146,28 @@ class ToolRegistry:
                         "required": ["action"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "antigravity_control",
+                    "description": "Control and check status of Google Antigravity autonomous coding agent for programming tasks, debugging, and code modifications.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": ["dispatch", "status", "cancel", "models"],
+                                "description": "Action to take: 'dispatch' to assign a task, 'status' to check current activity, 'cancel' to stop execution, or 'models' to list models."
+                            },
+                            "instruction": {
+                                "type": "string",
+                                "description": "The specific coding or engineering instruction when dispatching a task."
+                            }
+                        },
+                        "required": ["action"]
+                    }
+                }
             }
         ]
 
@@ -1128,6 +1201,8 @@ class ToolRegistry:
             return self.system_control(args.get("action", ""), args.get("target", ""))
         elif name == "media_player":
             return self.media_player(args.get("action", ""), args.get("query", ""))
+        elif name in ["antigravity_control", "coding_agent"]:
+            return await self.antigravity_control(args.get("action", ""), args.get("instruction", ""))
         return f"Unknown tool: {name}"
 
 tool_registry = ToolRegistry()

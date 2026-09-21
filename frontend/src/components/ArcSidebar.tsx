@@ -5,15 +5,19 @@ import {
   Settings,
   Volume2,
   VolumeX,
+  Terminal,
 } from 'lucide-react';
 
 interface MinimalSidebarProps {
   isListening: boolean;
   isMuted: boolean;
+  isAgentActive?: boolean;
+  isCockpitOpen?: boolean;
   onToggleListening: () => void;
   onToggleMute: () => void;
   onOpenDrawer: () => void;
   onOpenSettings: () => void;
+  onToggleCockpit?: () => void;
 }
 
 const SidebarButton: React.FC<{
@@ -45,10 +49,13 @@ const SidebarButton: React.FC<{
 export const ArcSidebar: React.FC<MinimalSidebarProps> = ({
   isListening,
   isMuted,
+  isAgentActive = false,
+  isCockpitOpen = false,
   onToggleListening,
   onToggleMute,
   onOpenDrawer,
   onOpenSettings,
+  onToggleCockpit,
 }) => {
   return (
     <aside className="relative z-30 h-full w-14 flex flex-col items-center justify-between py-5 select-none border-r border-[#232330]/50 shrink-0 glass-subtle">
@@ -77,6 +84,23 @@ export const ArcSidebar: React.FC<MinimalSidebarProps> = ({
         >
           <Mic className="w-4 h-4" />
         </SidebarButton>
+
+        {/* Antigravity Coding Agent Cockpit */}
+        {onToggleCockpit && (
+          <SidebarButton
+            onClick={onToggleCockpit}
+            isActive={isCockpitOpen || isAgentActive}
+            title={isAgentActive ? 'Antigravity Agent (Active)' : 'Antigravity Cockpit (A)'}
+            ariaLabel="Toggle Antigravity Cockpit"
+          >
+            <div className="relative flex items-center justify-center">
+              <Terminal className="w-4 h-4" />
+              {isAgentActive && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              )}
+            </div>
+          </SidebarButton>
+        )}
 
         {/* History */}
         <SidebarButton

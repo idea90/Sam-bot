@@ -70,3 +70,22 @@ export interface AssistantSettings {
   localBaseUrl: string;
   localModel: string;
 }
+
+export interface AgentStatusPayload {
+  state: 'idle' | 'running' | 'completed' | 'error' | 'cancelled';
+  current_task: string | null;
+  conversation_id: string | null;
+  active_tool: string | null;
+  active_tool_summary: string | null;
+  files_modified: string[];
+  latest_output: string;
+  start_time: number | null;
+  duration_seconds: number;
+  error: string | null;
+  model: string;
+}
+
+export interface AgentModel {
+  id: string;
+  name: string;
+}

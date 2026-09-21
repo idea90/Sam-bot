@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from .config import settings
-from .routers import chat
+from .routers import chat, agent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +38,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(chat.router)
+app.include_router(agent.router)
 
 @app.get("/")
 async def root():
