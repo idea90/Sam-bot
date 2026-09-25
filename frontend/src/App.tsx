@@ -86,7 +86,7 @@ export function App() {
         }
       })
       .catch((err) => console.error('Failed to load agent models:', err));
-  }, []);
+  }, [agentStatus.engine]);
 
   // Agent Status via WebSocket with fallback polling
   useEffect(() => {

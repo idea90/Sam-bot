@@ -358,9 +358,9 @@ class LLMService:
                 res = await tool_registry.web_search(query)
                 return ("web_search", res)
 
-        # 11a. Antigravity Coding Agent: Dispatch (explicit agent instructions)
+        # 11a. Autonomous Agent / Hermes / Coding Agent: Dispatch
         agent_dispatch_match = re.search(
-            r'^(?:can you\s+)?(?:please\s+)?(?:tell|ask|have|get|instruct|dispatch\s+to)\s+(?:the\s+)?(?:coding\s+agent|antigravity|agent)\s+(?:to\s+)?(.+)',
+            r'^(?:can you\s+)?(?:please\s+)?(?:tell|ask|have|get|instruct|dispatch\s+to)\s+(?:the\s+)?(?:hermes\s+agent|hermes|coding\s+agent|antigravity|agent)\s+(?:to\s+)?(.+)',
             query,
             flags=re.IGNORECASE
         )
@@ -369,15 +369,26 @@ class LLMService:
             res = await tool_registry.antigravity_control("dispatch", task_instruction)
             return ("antigravity_control", res)
 
-        # Agent prefix prompt: e.g. "Antigravity: create a script..." or "Coding agent, add tests"
+        # Agent prefix prompt: e.g. "Hermes: create a script..." or "Coding agent, add tests"
         agent_prefix_match = re.search(
-            r'^(?:antigravity|coding\s+agent)\s*[:,-]\s*(?:please\s+)?(?:to\s+)?(.+)',
+            r'^(?:hermes|hermes\s+agent|antigravity|coding\s+agent)\s*[:,-]\s*(?:please\s+)?(?:to\s+)?(.+)',
             query,
             flags=re.IGNORECASE
         )
         if agent_prefix_match:
             task_instruction = agent_prefix_match.group(1).strip(' ?.')
             res = await tool_registry.antigravity_control("dispatch", task_instruction)
+            return ("antigravity_control", res)
+
+        # Hermes Engine Switching Intent: e.g. "switch to hermes", "use coding agent"
+        switch_engine_match = re.search(r'\b(?:switch to|use|change to|select)\s+(?:the\s+)?(hermes|nous|coding agent)\b', lowered)
+        if switch_engine_match:
+            res = await tool_registry.antigravity_control("switch_engine", switch_engine_match.group(1))
+            return ("antigravity_control", res)
+
+        # Hermes Skills Intent: e.g. "what skills does hermes have", "list hermes skills"
+        if any(w in lowered for w in ['hermes skills', 'what skills does hermes have', 'what skills are installed', 'list skills', 'installed skills', 'agent skills']):
+            res = await tool_registry.antigravity_control("skills")
             return ("antigravity_control", res)
 
         # Direct coding & file creation requests (e.g. "create a python script in scratch called hello_sam.py...")
@@ -390,20 +401,20 @@ class LLMService:
             res = await tool_registry.antigravity_control("dispatch", query.strip(' ?.'))
             return ("antigravity_control", res)
 
-        # 11b. Antigravity Coding Agent: Cancel / Stop
-        if any(w in lowered for w in ['stop the agent', 'cancel the agent', 'stop coding agent', 'cancel coding agent', 'stop antigravity', 'cancel antigravity', 'abort the agent', 'kill the agent', 'stop agent', 'cancel agent']) or (
-            any(w in lowered for w in ['antigravity', 'coding agent']) and any(w in lowered for w in ['stop', 'cancel', 'abort', 'kill'])
+        # 11b. Agent: Cancel / Stop
+        if any(w in lowered for w in ['stop hermes', 'cancel hermes', 'stop the agent', 'cancel the agent', 'stop coding agent', 'cancel coding agent', 'stop antigravity', 'cancel antigravity', 'abort the agent', 'kill the agent', 'stop agent', 'cancel agent']) or (
+            any(w in lowered for w in ['hermes', 'antigravity', 'coding agent']) and any(w in lowered for w in ['stop', 'cancel', 'abort', 'kill'])
         ):
             res = await tool_registry.antigravity_control("cancel")
             return ("antigravity_control", res)
 
-        # 11c. Antigravity Coding Agent: Models
-        if any(w in lowered for w in ['antigravity', 'coding agent']) and any(w in lowered for w in ['models', 'model']):
+        # 11c. Agent: Models
+        if any(w in lowered for w in ['hermes', 'antigravity', 'coding agent']) and any(w in lowered for w in ['models', 'model']):
             res = await tool_registry.antigravity_control("models")
             return ("antigravity_control", res)
 
-        # 11d. Antigravity Coding Agent: Status & Monitoring
-        if any(w in lowered for w in ['coding agent', 'antigravity', 'agent status', 'check the agent', 'check agent', 'agent progress', 'is the agent running']):
+        # 11d. Agent: Status & Monitoring
+        if any(w in lowered for w in ['hermes status', 'check hermes', 'coding agent', 'antigravity', 'agent status', 'check the agent', 'check agent', 'agent progress', 'is the agent running', 'what is the agent doing']):
             res = await tool_registry.antigravity_control("status")
             return ("antigravity_control", res)
 

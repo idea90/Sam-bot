@@ -34,7 +34,7 @@ async def run_tests():
     # 5. Tool Registry antigravity_control - cancel when idle
     tool_cancel = await tool_registry.antigravity_control("cancel")
     print("[OK] Tool Antigravity Cancel:", tool_cancel)
-    assert "no agent" in tool_cancel.lower() or "no active" in tool_cancel.lower()
+    assert "agent" in tool_cancel.lower() and ("no" in tool_cancel.lower() or "running" in tool_cancel.lower())
 
     # 6. Intent Detection - Status query
     intent_status = await llm_service.detect_and_execute_tool("What is the coding agent doing right now?")
@@ -87,10 +87,47 @@ async def run_tests():
     assert intent_run is not None
     assert "executed suggested" in intent_run[1]
 
-    # Verify no 'Antigravity' brand name in tool outputs
+    # 13. Hermes Binary & Available Engines
+    assert "engine" in status
+    assert "available_engines" in status
+    engines = [e["id"] for e in status["available_engines"]]
+    assert "hermes" in engines
+    print("[OK] Available Engines:", engines)
+
+    # 14. Engine switching test
+    st_coding = agent_service.set_engine("coding_agent")
+    assert st_coding["engine"] == "coding_agent"
+    st_hermes = agent_service.set_engine("hermes")
+    assert st_hermes["engine"] == "hermes"
+    print("[OK] Engine Switching test passed:", st_hermes["engine"])
+
+    # 15. Hermes Skills list
+    skills = await agent_service.list_skills()
+    print(f"[OK] Hermes Skills ({len(skills)} found):", [s["name"] for s in skills[:5]])
+    assert isinstance(skills, list)
+    assert len(skills) > 0
+
+    # 16. Hermes Voice Intents
+    intent_skills = await llm_service.detect_and_execute_tool("What skills does Hermes have?")
+    print("[OK] Intent Hermes Skills:", intent_skills)
+    assert intent_skills is not None
+    assert "skills" in intent_skills[1].lower()
+
+    intent_switch = await llm_service.detect_and_execute_tool("Switch to Hermes")
+    print("[OK] Intent Switch Engine:", intent_switch)
+    assert intent_switch is not None
+    assert "hermes" in intent_switch[1].lower()
+
+    intent_hermes = await llm_service.detect_and_execute_tool("Ask Hermes to create a test script")
+    print("[OK] Intent Hermes Dispatch:", intent_hermes)
+    assert intent_hermes is not None
+    assert "dispatched" in intent_hermes[1].lower()
+    await agent_service.cancel_task()
+
+    # 17. Verify no 'Antigravity' brand name in tool outputs
     assert "antigravity" not in tool_status.lower()
 
-    print("[ALL OK] All Agent tests passed successfully!")
+    print("[ALL OK] All Agent & Hermes tests passed successfully!")
 
 if __name__ == "__main__":
     asyncio.run(run_tests())

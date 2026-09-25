@@ -15,8 +15,10 @@ import {
   Loader2,
   Copy,
   Check,
+  Sparkles,
+  Wrench,
 } from 'lucide-react';
-import type { AgentStatusPayload, AgentModel } from '../types';
+import type { AgentStatusPayload, AgentModel, AgentSkill } from '../types';
 
 interface AgentCockpitProps {
   status: AgentStatusPayload;
@@ -40,9 +42,16 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [showFiles, setShowFiles] = useState(true);
   const [taskInput, setTaskInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState(status.model || 'gemini-3.8-flash-high');
+  const [selectedModel, setSelectedModel] = useState(status.model || 'gemini-2.5-flash');
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Engine state
+  const currentEngine = status.engine || 'hermes';
+  const isHermes = currentEngine === 'hermes';
+  const [isSwitchingEngine, setIsSwitchingEngine] = useState(false);
+  const [skillsList, setSkillsList] = useState<AgentSkill[]>([]);
+  const [showSkills, setShowSkills] = useState(false);
 
   // Command runner state
   const [commandInput, setCommandInput] = useState('');
@@ -64,12 +73,50 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
     }
   }, [status.model]);
 
+  // Load Hermes skills list when Hermes is active
+  useEffect(() => {
+    if (isHermes && skillsList.length === 0) {
+      fetch('/api/agent/skills')
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data.skills) && data.skills.length > 0) {
+            setSkillsList(data.skills);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isHermes]);
+
   if (!isOpen) return null;
 
   const isRunning = status.state === 'running';
   const isCompleted = status.state === 'completed';
   const isError = status.state === 'error';
   const isCancelled = status.state === 'cancelled';
+
+  const handleSwitchEngine = async (engine: 'hermes' | 'coding_agent') => {
+    if (isSwitchingEngine || isRunning || engine === currentEngine) return;
+    try {
+      setIsSwitchingEngine(true);
+      const res = await fetch('/api/agent/engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+          const firstModel = data.models[0].id;
+          setSelectedModel(firstModel);
+          if (onSelectModel) onSelectModel(firstModel);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to switch engine:', err);
+    } finally {
+      setIsSwitchingEngine(false);
+    }
+  };
 
   const handleDispatch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -169,25 +216,64 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
   const badge = getBadgeStyle();
 
   return (
-    <div className="fixed top-5 right-5 z-40 w-[420px] max-w-[calc(100vw-40px)] animate-fade-up select-none">
+    <div className="fixed top-5 right-5 z-40 w-[440px] max-w-[calc(100vw-40px)] animate-fade-up select-none">
       <div className="relative rounded-2xl bg-[#121218]/95 backdrop-blur-md border border-[#232330] shadow-[0_12px_40px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300 hover:border-[#AAB4FF]/30">
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-3.5 py-3 border-b border-[#232330]/60 bg-[#0E0E14]">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-[#16161F] border border-[#232330] flex items-center justify-center text-[#AAB4FF] shrink-0">
-              <Terminal className="w-3.5 h-3.5" />
+            <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${
+              isHermes
+                ? 'bg-purple-500/15 border-purple-500/30 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                : 'bg-[#16161F] border-[#232330] text-[#AAB4FF]'
+            }`}>
+              {isHermes ? <Sparkles className="w-3.5 h-3.5 text-purple-300" /> : <Terminal className="w-3.5 h-3.5" />}
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[13px] font-semibold text-[#EDEDF2] tracking-tight leading-none">
-                Coding Agent
+              <span className="text-[13px] font-semibold text-[#EDEDF2] tracking-tight leading-none flex items-center gap-1.5">
+                {isHermes ? 'Hermes Agent' : 'Coding Agent'}
+                {isHermes && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono font-normal">
+                    Nous
+                  </span>
+                )}
               </span>
               <span className="text-[10px] font-mono text-[#5A5A68] uppercase tracking-wider mt-0.5">
-                Cockpit HUD
+                {isHermes ? '51+ Skills & Tools' : 'Terminal Engine'}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Engine Switcher Toggle Pill */}
+            <div className="flex items-center p-0.5 rounded-lg bg-[#07070A] border border-[#232330] mr-1">
+              <button
+                type="button"
+                onClick={() => handleSwitchEngine('hermes')}
+                disabled={isRunning || isSwitchingEngine}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition-all cursor-pointer disabled:opacity-50 ${
+                  isHermes
+                    ? 'bg-purple-600/30 text-purple-200 font-medium border border-purple-500/40 shadow-sm'
+                    : 'text-[#6C6C7E] hover:text-[#EDEDF2]'
+                }`}
+                title="Switch to Hermes Agent (Nous Research)"
+              >
+                ☤ Hermes
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchEngine('coding_agent')}
+                disabled={isRunning || isSwitchingEngine}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition-all cursor-pointer disabled:opacity-50 ${
+                  !isHermes
+                    ? 'bg-[#AAB4FF]/20 text-[#AAB4FF] font-medium border border-[#AAB4FF]/40 shadow-sm'
+                    : 'text-[#6C6C7E] hover:text-[#EDEDF2]'
+                }`}
+                title="Switch to standard Coding Agent"
+              >
+                ⚙ Coding
+              </button>
+            </div>
+
             {/* Status Pill */}
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-medium tracking-wide ${badge.bg}`}
@@ -230,7 +316,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
             {status.current_task ? (
               <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-[#0A0A0E] border border-[#1E1E28]">
                 <div className="flex items-center justify-between text-[11px] font-mono text-[#5A5A68]">
-                  <span className="uppercase tracking-wider">Active Task</span>
+                  <span className="uppercase tracking-wider">Active Task ({isHermes ? 'Hermes' : 'Agent'})</span>
                   {status.duration_seconds > 0 && (
                     <span className="flex items-center gap-1 text-[#8C8C9C]">
                       <Clock className="w-3 h-3" />
@@ -245,7 +331,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
             ) : (
               <div className="p-2.5 rounded-xl bg-[#0A0A0E] border border-[#1E1E28] text-center">
                 <p className="text-[12px] text-[#5A5A68] font-mono">
-                  No task active. Ready for coding assignment.
+                  {isHermes ? 'Hermes Agent is idle. Ready for coding or automation.' : 'Coding Agent is idle. Ready for task.'}
                 </p>
               </div>
             )}
@@ -255,16 +341,70 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
               <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#16161F] border border-cyan-500/20 text-[11px] text-cyan-200">
                 <Loader2 className="w-3 h-3 animate-spin shrink-0 text-cyan-400" />
                 <span className="font-mono truncate">
-                  {status.active_tool_summary || status.active_tool || 'Analyzing and planning steps...'}
+                  {status.active_tool_summary || status.active_tool || (isHermes ? 'Hermes reasoning and executing tools...' : 'Analyzing and planning steps...')}
                 </span>
               </div>
             )}
 
             {/* Error Display */}
-            {isError && status.error && (
-              <div className="flex items-start gap-2 p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span className="font-mono leading-tight">{status.error}</span>
+            {isError && (
+              <div className="flex items-start justify-between gap-2 p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="font-mono leading-tight">{status.error || 'The task encountered an error or was interrupted.'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/agent/reset', { method: 'POST' });
+                    } catch (e) {
+                      console.error('Failed to reset agent status', e);
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[10px] font-mono shrink-0 cursor-pointer"
+                  title="Clear error and reset HUD"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Hermes Skills Section (Only when Hermes is active) */}
+            {isHermes && skillsList.length > 0 && (
+              <div className="flex flex-col gap-1 border border-purple-500/20 rounded-xl overflow-hidden bg-purple-950/10 p-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowSkills(!showSkills)}
+                    className="flex items-center gap-1.5 text-purple-300 font-mono hover:text-purple-200 transition-colors cursor-pointer"
+                  >
+                    <Wrench className="w-3 h-3" />
+                    <span>Hermes Skills ({skillsList.length})</span>
+                    {showSkills ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                  </button>
+                  <span className="text-[10px] text-[#6C6C7E] font-mono">click to insert</span>
+                </div>
+
+                {showSkills && (
+                  <div className="mt-1 flex flex-wrap gap-1 max-h-32 overflow-y-auto pt-1">
+                    {skillsList.slice(0, 18).map((s) => (
+                      <button
+                        key={s.name}
+                        type="button"
+                        onClick={() => {
+                          setTaskInput((prev) =>
+                            prev ? `${prev} using skill ${s.name}` : `Use skill ${s.name} to `
+                          );
+                        }}
+                        className="px-2 py-0.5 rounded-md bg-[#16161F] hover:bg-purple-500/20 border border-[#232330] hover:border-purple-500/40 text-[10px] font-mono text-[#C4C7E0] hover:text-purple-200 transition-colors cursor-pointer"
+                        title={`Category: ${s.category}`}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -274,7 +414,7 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#5A5A68]">
                   Live Stream Output
                 </span>
-                <div className="p-2 rounded-lg bg-[#07070A] border border-[#1C1C26] max-h-24 overflow-y-auto font-mono text-[11px] text-[#AAB4FF] leading-snug whitespace-pre-wrap select-text">
+                <div className="p-2 rounded-lg bg-[#07070A] border border-[#1C1C26] max-h-28 overflow-y-auto font-mono text-[11px] text-[#AAB4FF] leading-snug whitespace-pre-wrap select-text">
                   {status.latest_output}
                 </div>
               </div>
@@ -298,24 +438,22 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
                   <div className="p-2 pt-0 max-h-36 overflow-y-auto flex flex-col gap-1.5">
                     {status.files_modified.map((f, i) => {
                       const ws = status.workspace_path || 'C:\\Users\\advice\\Downloads\\CODE\\Sam-bot';
-                      const fullPath = f.includes(':') || f.startsWith('/') ? f : `${ws}\\${f.replace(/\//g, '\\')}`;
+                      const fullPath = f.includes(':') || f.startsWith('/')
+                        ? f
+                        : `${ws}\\${f.replace(/\//g, '\\')}`;
                       return (
                         <div
-                          key={i}
-                          className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-[#16161F] border border-[#232330]/50"
+                          key={f}
+                          className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-[#14141C] border border-[#1F1F2B] text-[11px] font-mono"
                         >
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-mono text-[#EDEDF2] truncate font-medium">
-                              {f.split(/[/\\]/).pop()}
-                            </span>
-                            <span className="text-[10px] font-mono text-[#5A5A68] truncate" title={fullPath}>
-                              {fullPath}
-                            </span>
+                            <span className="text-[#EDEDF2] truncate font-medium">{f}</span>
+                            <span className="text-[10px] text-[#5A5A68] truncate select-all">{fullPath}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => copyFilePath(f, i)}
-                            className="p-1 rounded bg-[#1C1C26] hover:bg-[#232330] text-[#8C8C9C] hover:text-[#EDEDF2] transition-colors shrink-0 cursor-pointer"
+                            className="p-1 rounded hover:bg-[#232330] text-[#AAB4FF] transition-colors shrink-0 cursor-pointer"
                             title="Copy Full File Path"
                           >
                             {copiedIndex === i ? (
@@ -332,24 +470,24 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
               </div>
             )}
 
-            {/* Run Command Section (Always Ask / Suggest Command) */}
-            <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-[#0D0D14] border border-[#232330]">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#5A5A68] flex items-center gap-1">
-                  <Terminal className="w-3 h-3 text-[#AAB4FF]" />
-                  <span>Terminal Command</span>
+            {/* Terminal Command Runner */}
+            <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#0A0A0E] border border-[#1E1E28]">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-[#8C8C9C] flex items-center gap-1">
+                  <Terminal className="w-3 h-3 text-emerald-400" />
+                  Terminal Command
                 </span>
                 {status.suggested_command && (
                   <button
                     type="button"
                     onClick={() => {
                       setCommandInput(status.suggested_command || '');
-                      handleRunCommand(status.suggested_command || '');
+                      handleRunCommand(status.suggested_command || undefined);
                     }}
                     disabled={isExecutingCommand}
-                    className="text-[10px] font-mono text-[#AAB4FF] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="flex items-center gap-1 text-[10px] text-emerald-300 hover:text-emerald-200 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    <Play className="w-2 h-2 fill-current" />
+                    <Play className="w-2.5 h-2.5 fill-current" />
                     <span>Run Suggested</span>
                   </button>
                 )}
@@ -407,8 +545,8 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
                       if (onSelectModel) onSelectModel(e.target.value);
                     }}
                     disabled={isRunning}
-                    aria-label="Select Coding Agent Model"
-                    className="bg-transparent text-[11px] font-mono text-[#EDEDF2] focus:outline-none cursor-pointer disabled:opacity-50"
+                    aria-label="Select Agent Model"
+                    className="bg-transparent text-[11px] font-mono text-[#EDEDF2] focus:outline-none cursor-pointer disabled:opacity-50 max-w-[240px] truncate"
                   >
                     {models.map((m) => (
                       <option key={m.id} value={m.id} className="bg-[#16161F] text-[#EDEDF2]">
@@ -442,14 +580,18 @@ export const AgentCockpit: React.FC<AgentCockpitProps> = ({
                   type="text"
                   value={taskInput}
                   onChange={(e) => setTaskInput(e.target.value)}
-                  placeholder="Assign task to agent..."
+                  placeholder={isHermes ? 'Ask Hermes to create, debug, automate...' : 'Assign task to coding agent...'}
                   disabled={isDispatching}
                   className="flex-1 bg-[#0A0A0E] border border-[#232330] rounded-xl px-2.5 py-1.5 text-[12px] text-[#EDEDF2] placeholder-[#5A5A68] focus:outline-none focus:border-[#AAB4FF]/40 disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!taskInput.trim() || isDispatching}
-                  className="px-3 py-1.5 rounded-xl bg-[#AAB4FF] text-[#08080B] font-medium text-[11px] flex items-center gap-1 hover:bg-white transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className={`px-3 py-1.5 rounded-xl font-medium text-[11px] flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                    isHermes
+                      ? 'bg-purple-400 hover:bg-purple-300 text-[#08080B]'
+                      : 'bg-[#AAB4FF] hover:bg-white text-[#08080B]'
+                  }`}
                 >
                   {isDispatching ? (
                     <Loader2 className="w-3 h-3 animate-spin" />

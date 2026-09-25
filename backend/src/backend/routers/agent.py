@@ -7,33 +7,57 @@ from pydantic import BaseModel
 
 from ..services.agent_service import agent_service
 
-router = APIRouter(prefix="/api/agent", tags=["Antigravity Coding Agent"])
+router = APIRouter(prefix="/api/agent", tags=["Coding Agent"])
 
 class DispatchAgentRequest(BaseModel):
     instruction: str
     model: Optional[str] = None
     workspace: Optional[str] = None
+    engine: Optional[str] = None
+    skills: Optional[list[str]] = None
+
+class SwitchEngineRequest(BaseModel):
+    engine: str
 
 @router.get("/status")
 async def get_agent_status():
-    """Return real-time telemetry and status of the Antigravity coding agent."""
+    """Return real-time telemetry and status of the coding agent."""
     return agent_service.get_status()
 
 @router.get("/models")
 async def get_agent_models():
-    """Return list of available Antigravity models."""
+    """Return list of available agent models for the active engine."""
     models = await agent_service.list_models()
     return {"models": models}
 
+@router.get("/skills")
+async def get_agent_skills():
+    """Return list of skills installed in Hermes Agent."""
+    skills = await agent_service.list_skills()
+    return {"skills": skills}
+
+@router.post("/engine")
+async def switch_agent_engine(req: SwitchEngineRequest):
+    """Switch active agent engine between 'hermes' and 'coding_agent'."""
+    status = agent_service.set_engine(req.engine)
+    models = await agent_service.list_models()
+    return {"status": status, "models": models}
+
 @router.post("/cancel")
 async def cancel_agent_task():
-    """Cancel the actively running Antigravity coding task."""
+    """Cancel the actively running coding task."""
     cancelled = await agent_service.cancel_task()
     return {"cancelled": cancelled, "status": agent_service.get_status()}
 
+@router.post("/reset")
+async def reset_agent_status():
+    """Reset the agent status back to idle if not currently running."""
+    status = agent_service.reset_status()
+    return {"reset": True, "status": status}
+
 @router.post("/dispatch")
 async def dispatch_agent_task(req: DispatchAgentRequest):
-    """Dispatch a coding instruction to Antigravity and stream NDJSON progress."""
+    """Dispatch a coding or automation instruction to the agent and stream NDJSON progress."""
     if not req.instruction.strip():
         raise HTTPException(status_code=400, detail="Instruction cannot be empty")
 
@@ -46,6 +70,8 @@ async def dispatch_agent_task(req: DispatchAgentRequest):
                 instruction=req.instruction,
                 model=req.model,
                 workspace=req.workspace,
+                engine=req.engine,
+                skills=req.skills,
             ):
                 yield json.dumps(evt, ensure_ascii=False) + "\n"
         except Exception as e:
@@ -83,12 +109,18 @@ async def agent_websocket(websocket: WebSocket):
                     msg_type = payload.get("type")
                     if msg_type == "ping":
                         await websocket.send_json({"type": "pong"})
+                    elif msg_type == "set_engine":
+                        eng = payload.get("engine", "hermes")
+                        agent_service.set_engine(eng)
+                        await websocket.send_json({"event": "status", "data": agent_service.get_status()})
                     elif msg_type == "dispatch":
                         inst = payload.get("instruction", "")
                         mod = payload.get("model")
+                        eng = payload.get("engine")
+                        sk = payload.get("skills")
                         if inst and agent_service.status.state != "running":
                             # Dispatch in background task
-                            asyncio.create_task(self_consume(agent_service.dispatch_task(inst, mod)))
+                            asyncio.create_task(self_consume(agent_service.dispatch_task(instruction=inst, model=mod, engine=eng, skills=sk)))
                     elif msg_type == "cancel":
                         await agent_service.cancel_task()
                 except Exception:

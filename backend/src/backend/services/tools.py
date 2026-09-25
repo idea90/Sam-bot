@@ -859,29 +859,54 @@ class ToolRegistry:
         from .agent_service import agent_service
         act = (action or "").lower().strip()
         inst = (instruction or "").strip()
+        eng_name = "Hermes Agent" if agent_service.status.engine == "hermes" else "the agent"
+
+        if act in ["switch_engine", "set_engine", "engine"]:
+            if "hermes" in inst.lower() or "nous" in inst.lower():
+                agent_service.set_engine("hermes")
+                return "Switched active agent engine to Hermes Agent (Nous Research)."
+            elif "coding" in inst.lower() or "agy" in inst.lower() or "default" in inst.lower():
+                agent_service.set_engine("coding_agent")
+                return "Switched active agent engine to Coding Agent."
+            else:
+                curr = "Hermes Agent" if agent_service.status.engine == "hermes" else "Coding Agent"
+                return f"Currently active agent engine is {curr}. You can say 'switch to Hermes' or 'switch to Coding Agent'."
+
+        if act in ["skills", "list_skills"]:
+            skills = await agent_service.list_skills()
+            if skills:
+                names = [s["name"] for s in skills[:6]]
+                return f"Hermes Agent has {len(skills)} installed skills, including: {', '.join(names)}. You can ask Hermes to use any of them."
+            return "Hermes Agent currently has no extra skills loaded."
 
         if act in ["dispatch", "dispatch_task", "run", "start", "code"]:
             if not inst:
-                return "What task or bug would you like me to assign to the agent?"
+                return f"What task or bug would you like me to assign to {eng_name}?"
             if agent_service.status.state == "running":
                 curr = agent_service.status.current_task or "another task"
-                return f"The agent is currently busy working on: '{curr}'. Please wait for it to finish or say 'cancel agent' first."
+                return f"{eng_name} is currently busy working on: '{curr}'. Please wait for it to finish or say 'cancel agent' first."
+
+            # Automatically select Hermes if user prompt explicitly references Hermes
+            if "hermes" in inst.lower():
+                agent_service.set_engine("hermes")
+                eng_name = "Hermes Agent"
 
             # Start task as background asyncio task
             async def _run():
                 async for _ in agent_service.dispatch_task(inst):
                     pass
             agent_service._active_async_task = asyncio.create_task(_run())
-            return f"I've dispatched that task to the agent: '{inst}'. I will monitor its progress and let you know when it's done."
+            return f"I've dispatched that task to {eng_name}: '{inst}'. I will monitor its progress and let you know when it's done."
 
         if act in ["status", "check", "check_status", "progress"]:
             st = agent_service.get_status()
+            eng_label = "Hermes Agent" if st.get("engine") == "hermes" else "The agent"
             if st["state"] == "running":
                 curr_task = st.get("current_task", "a coding task")
                 tool_summary = st.get("active_tool_summary") or st.get("active_tool") or "thinking and planning"
                 dur = st.get("duration_seconds", 0)
                 files = len(st.get("files_modified", []))
-                return f"The agent is actively working on '{curr_task}'. Currently {tool_summary} ({dur}s elapsed, {files} files touched)."
+                return f"{eng_label} is actively working on '{curr_task}'. Currently {tool_summary} ({dur}s elapsed, {files} files touched)."
             elif st["state"] == "completed":
                 dur = st.get("duration_seconds", 0)
                 files = st.get("files_modified", [])
@@ -892,24 +917,24 @@ class ToolRegistry:
                 cmd_info = ""
                 if cmd:
                     cmd_info = f" Suggested command: '{cmd}'. Would you like me to run it?"
-                return f"The agent is idle. The last task completed in {dur} seconds.{file_info}{cmd_info}".strip()
+                return f"{eng_label} is idle. The last task completed in {dur} seconds.{file_info}{cmd_info}".strip()
             elif st["state"] == "cancelled":
-                return "The agent was cancelled and is currently idle."
+                return f"{eng_label} was cancelled and is currently idle."
             elif st["state"] == "error":
-                return f"The agent is idle. The last task encountered an error: {st.get('error', 'unknown error')}."
+                return f"{eng_label} is idle. The last task encountered an error: {st.get('error', 'unknown error')}."
             else:
-                return "The agent is currently idle and ready for a task."
+                return f"{eng_label} is currently idle and ready for a task."
 
         if act in ["cancel", "stop", "abort", "kill"]:
             cancelled = await agent_service.cancel_task()
             if cancelled:
-                return "I've cancelled the agent's active task."
-            return "No agent task is currently running."
+                return f"I've cancelled {eng_name}'s active task."
+            return f"No {eng_name} task is currently running."
 
         if act in ["models", "list_models"]:
             models = await agent_service.list_models()
             names = [m["name"] for m in models[:4]]
-            return f"The agent supports several models including: {', '.join(names)}."
+            return f"{eng_name} supports several models including: {', '.join(names)}."
 
         return f"Unknown agent command: {action}"
 

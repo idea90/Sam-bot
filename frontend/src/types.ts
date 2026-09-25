@@ -71,6 +71,19 @@ export interface AssistantSettings {
   localModel: string;
 }
 
+export interface AgentEngineOption {
+  id: string;
+  name: string;
+  available: boolean;
+  description?: string;
+}
+
+export interface AgentSkill {
+  name: string;
+  category: string;
+  status: string;
+}
+
 export interface AgentStatusPayload {
   state: 'idle' | 'running' | 'completed' | 'error' | 'cancelled';
   current_task: string | null;
@@ -85,6 +98,9 @@ export interface AgentStatusPayload {
   duration_seconds: number;
   error: string | null;
   model: string;
+  engine?: 'hermes' | 'coding_agent';
+  available_engines?: AgentEngineOption[];
+  skills?: AgentSkill[];
 }
 
 export interface AgentModel {
